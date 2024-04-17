@@ -147,23 +147,25 @@ def retrieve(clientSocket, filePath):
         clientSocket.recv(BUFFER_SIZE)
         #Now we'll send the file name along
         clientSocket.send(struct.pack("i", len(filePath)))
-        clientSocket.send(filePath)
+        clientSocket.send(filePath.encode())
 
         #get file size if it exists
         print("retrieving file from server")
 
         fileSize = struct.unpack("i", clientSocket.recv(4))[0]
+        print(fileSize)
 
         if fileSize <= 0:
             print("File does not exist. Please recheck your naming and try again")
             return
 
-    except:
-        print("Error checking files")
+    except Exception as e:
+        print(f"Error checking files: {e}")
+        return
     try:
         #So now we'll send the okay to send the file along
-        clientSocket.send("1")
-        outputFile = open(fileName, "wb")
+        clientSocket.send(b"1")
+        outputFile = open(filePath, "wb")
 
         bytesReceived = 0
 
