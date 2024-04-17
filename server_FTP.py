@@ -105,6 +105,37 @@ def invalidCommand(clientConnection, message):
 def store(clientConnection):
     print("Store Pressed")
 
+    try:
+        clientConnection.send(b"1")
+
+        #Now we need to receive and deal with file details
+        fileNameSize = struct.unpack("i", clientConnection.recv(4))[0]
+        fileName = clientConnection.recv(fileNameSize)
+        print(f"Client requesting upload of file: {fileName}")
+
+        #Send message to let client know the server is ready to receive
+        clientConnection.send(b"1")
+
+        #Now for the file size
+        fileSize = struct.unpack("i", clientConnection.recv(4))[0]
+
+        outputFile = open(fileName, "wb")
+
+        bytesReceived = 0 #This will keep track of the number of bytes we've sent over (kind of like we did in the other one)
+
+        print("Receiving upload from client")
+        while bytesReceived < fileSize:
+            chunk = clientConnection.recv(BUFFER_SIZE)
+            print(chunk)
+            outputFile.write(chunk)
+            bytesReceived += BUFFER_SIZE
+        outputFile.close()
+
+        print("File upload complete")
+        clientConnection.send(b"1")
+    except Exception as e:
+        print(f"Error uploading file: {e}")
+
 def retrieve(clientConnection):
     print("Retrive Pressed")
 
