@@ -99,36 +99,50 @@ def ls():
         return
 
     try:
-        clientSocket.settimeout(60)
+        #clientSocket.settimeout(60)
         #clientSocket.recv(BUFFER_SIZE)
         #first we will need the number of files
         #print("Got to here")
-        numFiles = struct.unpack("i", clientSocket.recv(4))[0] #should give us a value that we can convert into an int
-        print(numFiles)
+        numFileData = clientSocket.recv(4)
+        numFiles = struct.unpack("i", numFileData)[0] #should give us a value that we can convert into an int
+        #print(numFiles)
 
         #now we need a loop to receive each individual file
         for i in range(int(numFiles)):
             #print("Got to here")
+            # file name size 
             fileNameSize = struct.unpack("i", clientSocket.recv(4))[0]
+            #fileNameData = clientSocket.recv(4)
+            #print(f"fileNameSize: {fileNameSize}")
+            #file name
             fileName = clientSocket.recv(fileNameSize) #Setting the buffer to be the file size
+            #fileName = fileName.decode().rstrip('\x00')
 
+            #print(f"file Name: {fileName}")
+            
+            #file content size
+            #print(f"file size: {fileSize}")
             fileSize = struct.unpack("i", clientSocket.recv(4))[0]
 
+            #print("Here?")
             print(f"{fileName} - {fileSize}")
 
             clientSocket.send(b"1") #ensures client/server synchronization
 
-        totalDirectorySize = struct.unpack("i", clientSocket.recv(4))[0]
+        sdsData = clientSocket.recv(4)
+        totalDirectorySize = struct.unpack("i", sdsData)[0]
         print(f"Total Size: {totalDirectorySize}")
-        clientSocket.settimeout(5)
+        #clientSocket.send(b"1")
+        #clientSocket.settimeout(5)
     except Exception as e:
         print(f"Could not retrieve listing from server. Please try again later (Error: {e})")
-        clientSocket.settimeout(5)
+        #clientSocket.settimeout(5)
         return
     try:
-        clientSocket.send("1".encode())
-    except:
-        print("Unable to receive final confirmation from server")
+        clientSocket.send(b"1")
+    except Exception as e:
+        print(f"Unable to receive final confirmation from server\nError: {e}")
+       
 
 
 ### Driver code ###
@@ -172,6 +186,7 @@ while True:
 
             case "LS" | "LIST":
                 ls()
+                #isConnected = False
 
             case _ :
                 print("Error! Invalid command detected")
