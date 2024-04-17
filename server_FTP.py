@@ -36,45 +36,37 @@ QUIT - which closes the connection
 
 
 #LIST seems like an easy one to start with though
-def ls(clientConnection): #of course we're going to call it ls
-    print("Listing files")
-
-    #getting files from current working directory
-    lst = os.listdir(os.getcwd())
-
-    #first let's send the number of files that the client should expect. helps with overhead and error detection
-    clientConnection.send(struct.pack("i", len(lst)))
-
-    totalSize = 0
+def ls(clientSocket):
     try:
-        for i in lst:
-            #file name size
-            print(i)
-            clientConnection.send(struct.pack("i", sys.getsizeof(i)))
+        # Get list of files in the current directory
+        files = os.listdir(os.getcwd())
+        num_files = len(files)
+        totalSize = 0
 
-            #file name
-            clientConnection.send(i.encode())
+        # Send the number of files to the client
+        clientSocket.send(struct.pack('i', num_files))
 
-            #File content size
-            clientConnection.send(struct.pack("i", os.path.getsize(i)))
+        # Iterate over each file and send file details to the client
+        for filename in files:
+            # Send the length of the filename
+            filename_length = len(filename)
+            clientSocket.send(struct.pack('i', filename_length))
 
-            totalSize += os.path.getsize(i) #adding the size of file i to our totalSize
+            # Send the filename
+            clientSocket.send(filename.encode())
 
-            #make sure client and server are synced
-            clientConnection.recv(BUFFER_SIZE)
+            # Get file size
+            file_size = os.path.getsize(filename)
+            totalSize += file_size
+            clientSocket.send(struct.pack('i', file_size))
 
-        #total size of all files in the directory
-        clientConnection.send(struct.pack("i", totalSize))
-
-        #one last check
-        serverSocket.recv(BUFFER_SIZE)
-        print("File List Sent Successfully")
+        clientSocket.send(struct.pack('i', totalSize))
+        print(f"Sent {num_files} file(s) to the client.")
+        clientSocket.recv(BUFFER_SIZE)
 
     except Exception as e:
-        print(f"Error occurred in file listing {e}")
-        #if e.args[0] == 107 or e.args[0] == 32 or e.args[0] == 104:
-        clientConnection.close()
-        return
+        print(f"Error in ls function: {e}")
+        clientSocket.close()
 
 def quit(clientConnection):
     print(f"Initiating quit from {clientConnection}")
@@ -82,7 +74,7 @@ def quit(clientConnection):
     clientConnection.send("1".encode())
     #close and restart server
     clientConnection.close()
-    #serverSocket.close()
+    serverSocket.close()
 
 
 # I'm realizing it would probably make more sense to just stop an invalid message
@@ -132,4 +124,4 @@ while True:
     #clientConn.close()
 
 # And then this is where the server socket will close
-serverSocket.close()
+#serverSocket.close()

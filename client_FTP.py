@@ -46,6 +46,7 @@ def connect(ip):
     print(f"Attempting to connect to {ip}...")
 
     try:
+        serverName = ip
         clientSocket.connect((ip, serverPort))
         #clientSocket.recv(BUFFER_SIZE) # remember we're setting the buffer here in connect
         print("Connection Successful")
@@ -56,12 +57,13 @@ def connect(ip):
 
 def quit(qCode = '0'):
     if isConnected:
-        ip, port = clientSocket.getpeername()
+        #ip, port = clientSocket.getpeername()
         clientSocket.send("QUIT".encode())
         #wait for server go-ahed
         clientSocket.recv(BUFFER_SIZE)
         clientSocket.close()
-        print(f"Disconnected from server {ip}.")
+        print(f"Disconnected from server {serverName}.")
+        #serverName = ''
         #clientSocket = socket(AF_INET, SOCK_STREAM) # So putting this here should theoretically give us a new socket after closing. IT's a bit wasteful, but...
         #isConnected = False
         os._exit(os.EX_OK) #we'll come back to this in a minute
@@ -86,63 +88,48 @@ def printMenu():
         '''
     )
 
-def ls():
+def ls(clientSocket):
+    try:
+        # Send the 'LIST' command to the server
+        clientSocket.send(b'LIST')
 
-    if not isConnected:
-        print("Error! You need to connect to a server first!")
+        # Receive the number of files
+        num_files_data = clientSocket.recv(4)
+        num_files = struct.unpack('i', num_files_data)[0]
+        print(num_files)
+
+        # Receive and print details of each file
+        for _ in range(num_files):
+            # Receive filename length
+            filename_length_data = clientSocket.recv(4)
+            filename_length = struct.unpack('i', filename_length_data)[0]
+
+            # Receive filename
+            filename = clientSocket.recv(filename_length).decode()
+
+            # Receive file size
+            file_size_data = clientSocket.recv(4)
+            file_size = struct.unpack('i', file_size_data)[0]
+
+            # Print file details
+            print(f"File: {filename} - Size: {file_size} bytes")
+
+            # Send acknowledgment to the server
+            clientSocket.send(b'1')
+
+        # Receive the total directory size
+        total_directory_size_data = clientSocket.recv(4)
+        total_directory_size = struct.unpack('i', total_directory_size_data)[0]
+        print(f"Total directory size: {total_directory_size} bytes")
+        clientSocket.send(b'1')
         return
 
-    try:
-        clientSocket.send("LIST".encode())
-    except:
-        ("Unable to make request to server at this time")
-        return
-
-    try:
-        #clientSocket.settimeout(60)
-        #clientSocket.recv(BUFFER_SIZE)
-        #first we will need the number of files
-        #print("Got to here")
-        numFileData = clientSocket.recv(4)
-        numFiles = struct.unpack("i", numFileData)[0] #should give us a value that we can convert into an int
-        #print(numFiles)
-
-        #now we need a loop to receive each individual file
-        for i in range(int(numFiles)):
-            #print("Got to here")
-            # file name size 
-            fileNameSize = struct.unpack("i", clientSocket.recv(4))[0]
-            #fileNameData = clientSocket.recv(4)
-            #print(f"fileNameSize: {fileNameSize}")
-            #file name
-            fileName = clientSocket.recv(fileNameSize) #Setting the buffer to be the file size
-            #fileName = fileName.decode().rstrip('\x00')
-
-            #print(f"file Name: {fileName}")
-            
-            #file content size
-            #print(f"file size: {fileSize}")
-            fileSize = struct.unpack("i", clientSocket.recv(4))[0]
-
-            #print("Here?")
-            print(f"{fileName} - {fileSize}")
-
-            clientSocket.send(b"1") #ensures client/server synchronization
-
-        sdsData = clientSocket.recv(4)
-        totalDirectorySize = struct.unpack("i", sdsData)[0]
-        print(f"Total Size: {totalDirectorySize}")
-        #clientSocket.send(b"1")
-        #clientSocket.settimeout(5)
     except Exception as e:
-        print(f"Could not retrieve listing from server. Please try again later (Error: {e})")
-        #clientSocket.settimeout(5)
-        return
-    try:
-        clientSocket.send(b"1")
-    except Exception as e:
-        print(f"Unable to receive final confirmation from server\nError: {e}")
-       
+        print(f"Error in ls function: {e}")
+
+    finally:
+        # Send final acknowledgment to the server
+        clientSocket.send(b'1')
 
 
 ### Driver code ###
@@ -159,7 +146,7 @@ printMenu()
 
 while True:
 
-    command = input("Input your command: ")
+    command = input(f"Input your command: ")
     tokens = command.split()
 
     if not tokens:
@@ -185,7 +172,7 @@ while True:
                 isConnected = False
 
             case "LS" | "LIST":
-                ls()
+                ls(clientSocket)
                 #isConnected = False
 
             case _ :
