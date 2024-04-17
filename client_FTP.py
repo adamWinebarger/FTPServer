@@ -147,23 +147,25 @@ def retrieve(clientSocket, filePath):
         clientSocket.recv(BUFFER_SIZE)
         #Now we'll send the file name along
         clientSocket.send(struct.pack("i", len(filePath)))
-        clientSocket.send(filePath)
+        clientSocket.send(filePath.encode())
 
         #get file size if it exists
         print("retrieving file from server")
 
         fileSize = struct.unpack("i", clientSocket.recv(4))[0]
+        print(fileSize)
 
         if fileSize <= 0:
             print("File does not exist. Please recheck your naming and try again")
             return
 
-    except:
-        print("Error checking files")
+    except Exception as e:
+        print(f"Error checking files: {e}")
+        return
     try:
         #So now we'll send the okay to send the file along
-        clientSocket.send("1")
-        outputFile = open(fileName, "wb")
+        clientSocket.send(b"1")
+        outputFile = open(filePath, "wb")
 
         bytesReceived = 0
 
@@ -189,11 +191,49 @@ def store(clientSocket, filePath):
     if filePath is None:
         print("Error. Must provide argument in the form of a filepath")
         return
-
+    print(f"checking for file {filePath} in current working directory")
+    if not os.path.isfile(filePath):
+        print("File does not exist at specified location")
+        return
     try:
-        clientSocket.send(b"STORE")
+        clientSocket.send(b"STORE") #Sending initial message
     except Exception as e:
-        print(f"Error with storing: {e}")
+        print(f"Error with storing accessing server: {e}")
+        return
+    
+    try:
+        #first we need OK from the server
+        #clientSocket.recv(BUFFER_SIZE) #Sending ok
+
+        # Now we can send the size of the file name, followed by the file name itself
+        clientSocket.send(struct.pack("i", len(filePath))) #sending size of filepath
+        clientSocket.send(filePath.encode()) #sending filepath
+
+        #Wait for acknowledgement
+        clientSocket.recv(BUFFER_SIZE) #sending buffer
+
+        #clientSocket.send(struct.pack)
+        clientSocket.send(struct.pack("i", os.path.getsize(filePath)))
+
+        #now send the file size so that te server knows what to expect
+        print("Uploading file...")
+        content = open(filePath, "rb")
+        chunk = content.read(BUFFER_SIZE)
+        while chunk:
+            print(f"{chunk}\n")
+            clientSocket.send(chunk)
+            chunk = content.read(BUFFER_SIZE)
+
+        content.close()
+        print("File successfully uploaded to FTP server")
+        #clientSocket.send(b"1") #Last ittle check
+        clientSocket.recv(BUFFER_SIZE)
+    except Exception as e:
+        print(f"Error sending file: {e}")
+    
+
+    
+
 
 
 ### Driver code ###
