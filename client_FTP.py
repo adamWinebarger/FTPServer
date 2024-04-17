@@ -85,6 +85,7 @@ def printMenu():
         - RETRIEVE : allows client to get specified filename from server. Requires filename as argument
         - STORE : Allows client to send specified file to server. Requires filename as argument
         - QUIT : Terminates connection to server. Takes additional argument that allows user to also exit the clientside program (0 to stay open, 1 to close; default is 0)
+        - HELP: Show this menu again
         '''
     )
 
@@ -131,6 +132,69 @@ def ls(clientSocket):
         # Send final acknowledgment to the server
         clientSocket.send(b'1')
 
+def retrieve(clientSocket, filePath):
+    #print("Client pressed store")
+    if filePath is None:
+        print("Error. Must provide argument in the form of a filepath")
+        return
+
+    try:
+        clientSocket.send(b"RETRIEVE")
+    except Exception as e:
+        print(f"Error with making server request: {e}")
+    try:
+        #first wait for okay from the server
+        clientSocket.recv(BUFFER_SIZE)
+        #Now we'll send the file name along
+        clientSocket.send(struct.pack("i", len(filePath)))
+        clientSocket.send(filePath)
+
+        #get file size if it exists
+        print("retrieving file from server")
+
+        fileSize = struct.unpack("i", clientSocket.recv(4))[0]
+
+        if fileSize <= 0:
+            print("File does not exist. Please recheck your naming and try again")
+            return
+
+    except:
+        print("Error checking files")
+    try:
+        #So now we'll send the okay to send the file along
+        clientSocket.send("1")
+        outputFile = open(fileName, "wb")
+
+        bytesReceived = 0
+
+        print("Transferring file from server")
+        while bytesReceived < fileSize:
+
+            #Basically, we have to send it over in chunks defined by our buffer
+            chunk = clientSocket.recv(BUFFER_SIZE)
+            outputFile.write(chunk)
+            bytesReceived += BUFFER_SIZE
+        outputFile.close()
+        print("Download complete")
+
+        #message letting the server know we're disconnected
+        clientSocket.send(b"1")
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+
+
+
+def store(clientSocket, filePath):
+    #print("Client pressed retrieve")
+    if filePath is None:
+        print("Error. Must provide argument in the form of a filepath")
+        return
+
+    try:
+        clientSocket.send(b"STORE")
+    except Exception as e:
+        print(f"Error with storing: {e}")
+
 
 ### Driver code ###
 
@@ -174,6 +238,13 @@ while True:
             case "LS" | "LIST":
                 ls(clientSocket)
                 #isConnected = False
+            case "HELP":
+                show_menu()
+            case "STORE":
+                store(clientSocket, tokens[1] if len(tokens) > 1 else None)
+            case "RETRIEVE":
+                retrieve(clientSocket, tokens[1] if len(tokens) > 1 else None)
+
 
             case _ :
                 print("Error! Invalid command detected")

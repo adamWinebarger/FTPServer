@@ -1,6 +1,7 @@
 import os
 import struct
 import sys
+import signal
 
 from socket import *
 from subprocess import check_output
@@ -14,6 +15,12 @@ serverSocket = socket(AF_INET, SOCK_STREAM)
 
 serverSocket.bind(('', TCP_PORT)) #I think we'll want this to listen for other devices so I'm borrowing this from PA2
 #serverSocket.settimeout(10)
+
+def signalHandler(sig, fram):
+    print("SigInt Pressed. Exiting Now")
+    serverSocket.close()
+
+signal.signal(signal.SIGINT, signalHandler)
 
 #Also going to borrow the bit that will give us the machine's IP rather than loopback
 ips = check_output(['hostname', '--all-ip-addresses']).decode().split()
@@ -59,6 +66,7 @@ def ls(clientSocket):
             file_size = os.path.getsize(filename)
             totalSize += file_size
             clientSocket.send(struct.pack('i', file_size))
+            clientSocket.recv(BUFFER_SIZE)
 
         clientSocket.send(struct.pack('i', totalSize))
         print(f"Sent {num_files} file(s) to the client.")
@@ -73,8 +81,8 @@ def quit(clientConnection):
     #send quit confirmation
     clientConnection.send("1".encode())
     #close and restart server
-    clientConnection.close()
-    serverSocket.close()
+    #clientConnection.close()
+    #serverSocket.close()
 
 
 # I'm realizing it would probably make more sense to just stop an invalid message
@@ -93,35 +101,81 @@ def invalidCommand(clientConnection, message):
         #should we close the server here?
 
 #handle incoming connections and handle requests from the client-side
+
+def store(clientConnection):
+    print("Store Pressed")
+
+def retrieve(clientConnection):
+    print("Retrive Pressed")
+
+    clientConnection.send(b"1")
+    filename_length = struct.unpack("i", conn.recv(4))[0]
+
+    filename = clientConnection.recv(filename_length)
+    print(f"Client requested file: {filename}\nChecking if that exists...")
+
+    #does the requested file exist?
+    if os.path.isFile(fileName):
+        clientConnection.send(struct.pack("i", len(filename)))
+    else:
+        printf("File does not exist at this FTP server")
+        clientConnection.send(struct.pack("i", -1))
+        return
+    #Now we need to wait for the okay to sesnd the file
+    clientConnection.recv(BUFFER_SIZE)
+
+    print("Sending file to client...")
+    content = open(filename, "rb")
+
+    #Gotta break it into chunks defined by the buffer size
+    chunk = conent.read(BUFFER_SIZE)
+    while chunk:
+        clientConnection.send(chunk)
+        chunk = content.read(BUFFER_SIZE)
+    content.close()
+
+    print("Download complete")
+
+
+def handleClient(clientSocket):
+    try:
+        while True:
+
+            data = clientSocket.recv(BUFFER_SIZE)
+
+            if not data:
+                print(f"{clientAddress} has disconnected from the server")
+                break
+
+            command = data.decode().strip()
+            print(command)
+
+            match command.upper():
+                case "LIST":
+                    ls(clientConn)
+                # some other stuff will go here in a minute
+                case "QUIT":
+                    quit(clientConn)
+                case "RETRIEVE":
+                    store(clientConn)
+                case "STORE":
+                    retrieve(clientConn)
+                case _:
+                    #invalidCommand(clientConn, "Error! Invalid command detected")
+                    print(f"Extraneous/invalide command: {command}")
+    except Exception as e:
+        print(f"Error handling client: {e}")
 while True:
 
     clientConn, clientAddress = serverSocket.accept()
     print(f"Connection established with {clientConn}")
 
-    #Now we need our data
-    data = clientConn.recv(1024)
-    print(data)
 
-    if not data:
-        #No data means that the client has closed the connection
-        print(f"{clientAddress} has disconnected from the server")
-    else:
-        command = data.decode().strip()
-        print(command)
-
-        match command.upper():
-            case "LIST":
-                ls(clientConn)
-            # some other stuff will go here in a minute
-            case "QUIT":
-                quit(clientConn)
-
-            case _:
-                invalidCommand(clientConn, "Error! Invalid command detected")
+    handleClient(clientConn)
 
     # This is where the acutal stuff will happen
 
-    #clientConn.close()
+    clientConn.close()
 
 # And then this is where the server socket will close
-#serverSocket.close()
+serverSocket.close()
