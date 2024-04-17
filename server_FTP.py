@@ -109,16 +109,16 @@ def retrieve(clientConnection):
     print("Retrive Pressed")
 
     clientConnection.send(b"1")
-    filename_length = struct.unpack("i", conn.recv(4))[0]
+    filename_length = struct.unpack("i", clientConnection.recv(4))[0]
 
     filename = clientConnection.recv(filename_length)
     print(f"Client requested file: {filename}\nChecking if that exists...")
 
     #does the requested file exist?
-    if os.path.isFile(fileName):
+    if os.path.isfile(filename):
         clientConnection.send(struct.pack("i", len(filename)))
     else:
-        printf("File does not exist at this FTP server")
+        print("File does not exist at this FTP server")
         clientConnection.send(struct.pack("i", -1))
         return
     #Now we need to wait for the okay to sesnd the file
@@ -128,13 +128,15 @@ def retrieve(clientConnection):
     content = open(filename, "rb")
 
     #Gotta break it into chunks defined by the buffer size
-    chunk = conent.read(BUFFER_SIZE)
+    chunk = content.read(BUFFER_SIZE)
     while chunk:
         clientConnection.send(chunk)
         chunk = content.read(BUFFER_SIZE)
     content.close()
 
     print("Download complete")
+    #Final check
+    clientConnection.recv(BUFFER_SIZE)
 
 
 def handleClient(clientSocket):
@@ -157,9 +159,9 @@ def handleClient(clientSocket):
                 case "QUIT":
                     quit(clientConn)
                 case "RETRIEVE":
-                    store(clientConn)
-                case "STORE":
                     retrieve(clientConn)
+                case "STORE":
+                    store(clientConn)
                 case _:
                     #invalidCommand(clientConn, "Error! Invalid command detected")
                     print(f"Extraneous/invalide command: {command}")
